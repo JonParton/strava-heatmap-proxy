@@ -93,6 +93,35 @@ Here's an example tile URL with some data:
 When you're all set, use `wrangler deploy` to bring the site live on
 `strava-heatmap-proxy.YOUR-NAMESPACE.workers.dev`
 
+## Notes for this fork
+
+This fork is deployed by hand with wrangler, on workers.dev, not by the GitHub
+Action below.
+
+```bash
+npm install
+npx wrangler dev --remote   # test against the real secrets and KV namespace
+npx wrangler deploy
+npx wrangler tail           # live logs when tiles start failing
+```
+
+Where things are kept:
+
+- `PROXY_TOKEN`: 1Password, vault "Agents Shared", item "Strava heatmap proxy".
+- `STRAVA_ID` and `STRAVA_SESSION`: Jon's own Strava item in 1Password. Enter
+  them with `wrangler secret put`; never put them in a file.
+- `LAYERS.md` (gitignored): the finished tile URLs for Gaia GPS, token
+  included. Each one is
+  `https://<worker hostname>/<PROXY_TOKEN>/<kind>/<color>/<activity>/{z}/{x}/{y}@2x.png`
+  with max zoom 15. Changing the color, activity or size is only a URL change;
+  nothing needs redeploying.
+- `.dev.vars` (gitignored): `PROXY_TOKEN=...` for `wrangler dev`.
+
+To rotate `PROXY_TOKEN`: `openssl rand -hex 32 | npx wrangler secret put PROXY_TOKEN`,
+then update the 1Password item, `LAYERS.md`, `.dev.vars` and every map source
+in Gaia. The old URLs stop working at once, though tiles already cached under
+the old token can be served for up to `TILE_CACHE_SECS`.
+
 ## (optional) GitHub Actions
 
 Start by forking this repository and setting up some GitHub secrets

@@ -57,7 +57,8 @@ async function handleRequest(event) {
 
       if (Env.TILE_CACHE_SECS > 0 && response.status === 200) {
         response = new Response(response.body, response);
-        response.headers.append(
+        // Replace Strava's own Cache-Control rather than adding a second one.
+        response.headers.set(
           "Cache-Control",
           `max-age=${Env.TILE_CACHE_SECS}`,
         );

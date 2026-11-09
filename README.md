@@ -14,11 +14,17 @@ Personal use only, please. Strava will ratelimit you.
 If you want to use these heatmaps as a tile layer in another app, here are the
 template URLs to use:
 
-- Personal: `https://strava-heatmap-proxy.YOUR_NAMESPACE.workers.dev/personal/orange/all/{zoom}/{x}/{y}@2x.png`
-- Global: `https://strava-heatmap-proxy.YOUR_NAMESPACE.workers.dev/global/orange/all/{zoom}/{x}/{y}@2x.png`
+- Personal: `https://strava-heatmap-proxy.YOUR_NAMESPACE.workers.dev/PROXY_TOKEN/personal/orange/all/{zoom}/{x}/{y}@2x.png`
+- Global: `https://strava-heatmap-proxy.YOUR_NAMESPACE.workers.dev/PROXY_TOKEN/global/orange/all/{zoom}/{x}/{y}@2x.png`
 
-Check `https://strava-heatmap-proxy.YOUR_NAMESPACE.workers.dev/` for full list
-of supported tile colors, activities, and sizes.
+Every request must carry the `PROXY_TOKEN` secret as its first path segment.
+Anything else, including `/`, returns 404.
+
+- Sizes: `{y}@small.png` (256px, global only), `{y}.png` (512px), `{y}@2x.png` (1024px)
+- Colors: `mobileblue` (global only), `orange`, `hot`, `blue`, `bluered`, `purple`, `gray`
+- Activities: `all`, `ride`, `winter`, `run`, `water`, or a single sport such as
+  `sport_MountainBikeRide`, `sport_AlpineSki`, `sport_BackcountrySki`,
+  `sport_NordicSki`, `sport_Hike`, `sport_TrailRun`
 
 # Deploying the proxy
 
@@ -52,23 +58,39 @@ wrangler kv namespace create STRAVA_HEATMAP_PROXY_COOKIES
 
 echo "1234" | wrangler secret put STRAVA_ID
 echo "abc123..." | wrangler secret put STRAVA_SESSION
+
+# A long random string that gates the proxy. Keep it out of the repository.
+openssl rand -hex 32 | wrangler secret put PROXY_TOKEN
 ```
 
 The worker will automatically exchange your session cookie for CloudFront
 credentials and refresh them as they expire.
 
-You'll need to update `STRAVA_SESSION` if your session cookie ever expires
-though.
+### Rotating `STRAVA_SESSION`
+
+The session cookie does expire eventually (and immediately if you log out of
+Strava in that browser). When it does, tiles fail with a 500 saying
+`Failed to obtain CloudFront cookies from Strava — session may be invalid`.
+To fix it:
+
+1. Log in at https://strava.com/maps and copy the new `_strava4_session`
+   cookie value from devtools.
+2. Run `wrangler secret put STRAVA_SESSION` and paste the value at the prompt.
+   The secret takes effect straight away; no redeploy is needed.
+
+Tiles already in Cloudflare's cache keep being served for up to
+`TILE_CACHE_SECS` in the meantime.
 
 ### Verify
 
-Check that everything's working by running `wrangler dev`.
+Check that everything's working by running `wrangler dev --remote`, which
+uses the secrets and KV namespace set above.
 
 Here's an example tile URL with some data:
-[/global/mobileblue/all/11/351/817@2x.png](http://127.0.0.1:8787/global/mobileblue/all/11/351/817@2x.png)
+`http://127.0.0.1:8787/PROXY_TOKEN/global/mobileblue/all/11/351/817@2x.png`
 (Downtown Los Angeles)
 
-When you're all set, use `wrangler publish` to bring the site live on
+When you're all set, use `wrangler deploy` to bring the site live on
 `strava-heatmap-proxy.YOUR-NAMESPACE.workers.dev`
 
 ## (optional) GitHub Actions

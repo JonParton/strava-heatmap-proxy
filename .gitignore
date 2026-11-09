@@ -2,3 +2,6 @@ dist/
 node_modules/
 worker/
 .vscode/
+LAYERS.md
+.dev.vars
+.wrangler/

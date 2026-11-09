@@ -2,7 +2,7 @@ name = "strava-heatmap-proxy"
 main = "index.js"
 workers_dev = true
 
-compatibility_date = "2021-11-19"
+compatibility_date = "2026-11-01"
 
 # TILE_CACHE_SECS: Controls how long Cloudflare should cache each tile before
 # requesting again from Strava. Use "0" to disable caching.
@@ -14,6 +14,7 @@ vars = { TILE_CACHE_SECS = "86400", ALLOWED_ORIGINS = "" }
 # [secrets]
 # STRAVA_ID
 # STRAVA_SESSION (value of _strava4_session cookie)
+# PROXY_TOKEN (long random string; first path segment of every request)
 
 # Create with: wrangler kv namespace create STRAVA_HEATMAP_PROXY_COOKIES
 [[kv_namespaces]]

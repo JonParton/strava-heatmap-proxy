@@ -9,6 +9,7 @@ const Router = require("./router");
 const Env = {
   STRAVA_ID: globalThis.STRAVA_ID,
   STRAVA_SESSION: globalThis.STRAVA_SESSION,
+  PROXY_TOKEN: globalThis.PROXY_TOKEN,
   TILE_CACHE_SECS: +TILE_CACHE_SECS || 0,
   ALLOWED_ORIGINS: (globalThis.ALLOWED_ORIGINS || "*").split(","),
 };
@@ -17,16 +18,40 @@ addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event));
 });
 
+const NOT_FOUND = () => new Response("not found", { status: 404 });
+
+// Every request must carry the PROXY_TOKEN secret as its first path segment:
+// /<token>/global/... or /<token>/personal/... Fails closed when the secret is
+// unset.
+function hasValidToken(request) {
+  const expected = Env.PROXY_TOKEN;
+  if (!expected) return false;
+
+  const given = new URL(request.url).pathname.split("/")[1] || "";
+  if (given.length !== expected.length) return false;
+
+  // Compare without bailing out early on the first mismatch.
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 async function handleRequest(event) {
   try {
+    // Must run before the cache lookup, so cached tiles are gated too.
+    if (!hasValidToken(event.request)) {
+      return NOT_FOUND();
+    }
+
     let response = await caches.default.match(event.request.url);
 
     if (!response) {
       const r = new Router();
-      r.get("/(personal|global)/.*", (req) =>
+      r.get("/[^/]+/(personal|global)/.*", (req) =>
         handleTileProxyRequest(req, event),
       );
-      r.get("/", () => handleIndexRequest());
 
       response = await r.route(event.request);
 
@@ -34,7 +59,7 @@ async function handleRequest(event) {
         response = new Response(response.body, response);
         response.headers.append(
           "Cache-Control",
-          `maxage=${Env.TILE_CACHE_SECS}`,
+          `max-age=${Env.TILE_CACHE_SECS}`,
         );
         event.waitUntil(
           caches.default.put(event.request.url, response.clone()),
@@ -46,68 +71,6 @@ async function handleRequest(event) {
   } catch (err) {
     return new Response(`err in request handler: ${err}`, { status: 500 });
   }
-}
-
-function handleIndexRequest() {
-  return new Response(`\
-Global Heatmap
-       256px: /global/:color/:activity/{z}/{x}/{y}@small.png
-       512px: /global/:color/:activity/{z}/{x}/{y}.png
-      1024px: /global/:color/:activity/{z}/{x}/{y}@2x.png
-
-      colors: mobileblue, orange, hot, blue, bluered, purple, gray
-  activities: all, ride, winter, run, water, ...
-
-
-Personal Heatmap
-       512px: /personal/:color/:activity/{z}/{x}/{y}.png
-      1024px: /personal/:color/:activity/{z}/{x}/{y}@2x.png
-
-      colors: orange, hot, blue, bluered, purple, gray
-  activities: all, ride, winter, run, water, ...
-
-
-Additional Activity Types
-    sport_AlpineSki
-    sport_BackcountrySki
-    sport_Badminton
-    sport_Canoeing
-    sport_EBikeRide
-    sport_EMountainBikeRide
-    sport_Golf
-    sport_GravelRide
-    sport_Handcycle
-    sport_Hike
-    sport_IceSkate
-    sport_InlineSkate
-    sport_Kayaking
-    sport_Kitesurf
-    sport_MountainBikeRide
-    sport_NordicSki
-    sport_Pickleball
-    sport_Ride
-    sport_RockClimbing
-    sport_RollerSki
-    sport_Rowing
-    sport_Run
-    sport_Sail
-    sport_Skateboard
-    sport_Snowboard
-    sport_Snowshoe
-    sport_Soccer
-    sport_StandUpPaddling
-    sport_Surfing
-    sport_Swim
-    sport_Tennis
-    sport_TrailRun
-    sport_Velomobile
-    sport_VirtualRide
-    sport_VirtualRow
-    sport_VirtualRun
-    sport_Walk
-    sport_Wheelchair
-    sport_Windsurf
-`);
 }
 
 // Exchange our session cookie for fresh CloudFront credentials via /maps.
@@ -207,7 +170,7 @@ async function handleTileProxyRequest(request, event) {
 
   const match = url.pathname.match(
     new RegExp(
-      "(personal|global)/(\\w+)/(\\w+)/(\\d+)/(\\d+)/(\\d+)(@small|@2x)?.png",
+      "^/[^/]+/(personal|global)/(\\w+)/(\\w+)/(\\d+)/(\\d+)/(\\d+)(@small|@2x)?\\.png$",
     ),
   );
   if (match === null) {
@@ -258,7 +221,9 @@ async function handleTileProxyRequest(request, event) {
   let response = await fetch(proxiedRequest);
   response = new Response(await response.arrayBuffer(), response);
 
-  response.headers.append("Access-Control-Allow-Origin", origin);
+  if (origin !== null) {
+    response.headers.append("Access-Control-Allow-Origin", origin);
+  }
 
   return response;
 }

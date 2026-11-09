@@ -119,8 +119,8 @@ Where things are kept:
 
 To rotate `PROXY_TOKEN`: `openssl rand -hex 32 | npx wrangler secret put PROXY_TOKEN`,
 then update the 1Password item, `LAYERS.md`, `.dev.vars` and every map source
-in Gaia. The old URLs stop working at once, though tiles already cached under
-the old token can be served for up to `TILE_CACHE_SECS`.
+in Gaia. The old URLs stop working at once, cached tiles included, because
+the token is checked before the cache.
 
 ## (optional) GitHub Actions
 

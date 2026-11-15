@@ -1,4 +1,5 @@
 const Router = require("./router");
+const { isKnownActivity } = require("./activities");
 
 // The Cloudflare worker runtime populates these globals.
 //
@@ -191,6 +192,14 @@ async function handleTileProxyRequest(request, event) {
   }
 
   const [_, kind, color, activity, z, x, y, res] = match;
+
+  if (!isKnownActivity(activity)) {
+    return new Response(
+      `unknown activity "${activity}", see activities.js for the list`,
+      { status: 400 },
+    );
+  }
+
   const data = {
     strava_id: Env.STRAVA_ID,
     color,

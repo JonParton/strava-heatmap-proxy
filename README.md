@@ -22,9 +22,14 @@ Anything else, including `/`, returns 404.
 
 - Sizes: `{y}@small.png` (256px, global only), `{y}.png` (512px), `{y}@2x.png` (1024px)
 - Colors: `mobileblue` (global only), `orange`, `hot`, `blue`, `bluered`, `purple`, `gray`
-- Activities: `all`, `ride`, `winter`, `run`, `water`, or a single sport such as
-  `sport_MountainBikeRide`, `sport_AlpineSki`, `sport_BackcountrySki`,
-  `sport_NordicSki`, `sport_Hike`, `sport_TrailRun`
+- Activities: a group (`all`, `ride`, `winter`, `run`, `water`) or a single
+  sport such as `sport_MountainBikeRide`, `sport_AlpineSki`,
+  `sport_BackcountrySki`, `sport_NordicSki`, `sport_Run`, `sport_TrailRun`,
+  `sport_Hike`, `sport_Walk`. The full list is in
+  [activities.js](activities.js); any other name returns 400.
+- On foot: on the global heatmap `run` is every on-foot sport together (run,
+  trail run, walk, hike). On the personal heatmap `run` is runs only, so use
+  `sport_Run` and `sport_Hike` as two layers there.
 
 # Deploying the proxy
 
@@ -100,6 +105,7 @@ Action below.
 
 ```bash
 npm install
+npm test                    # the activity list
 npx wrangler dev --remote   # test against the real secrets and KV namespace
 npx wrangler deploy
 npx wrangler tail           # live logs when tiles start failing
@@ -114,7 +120,8 @@ Where things are kept:
   included. Each one is
   `https://<worker hostname>/<PROXY_TOKEN>/<kind>/<color>/<activity>/{z}/{x}/{y}@2x.png`
   with max zoom 15. Changing the color, activity or size is only a URL change;
-  nothing needs redeploying.
+  nothing needs redeploying, unless the activity is not yet in
+  `activities.js`.
 - `.dev.vars` (gitignored): `PROXY_TOKEN=...` for `wrangler dev`.
 
 To rotate `PROXY_TOKEN`: `openssl rand -hex 32 | npx wrangler secret put PROXY_TOKEN`,
